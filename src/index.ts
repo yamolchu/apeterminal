@@ -50,7 +50,7 @@ function parseEmails(filePath: string) {
 const proxies = parseProxies('./inputs/proxies.txt');
 const emails = parseEmails('./inputs/emails.txt');
 
-async function reg( email: any, proxy: string) {
+async function reg(email: any, proxy: string) {
   const headers = {
     Host: 'api-passwordless.web3auth.io',
     'User-Agent': random().toString(),
@@ -78,23 +78,32 @@ async function reg( email: any, proxy: string) {
     }
     return result;
   }
-  const sendCode = async (client_id:string,web3auth_client_id:string) => {
+  const sendCode = async (client_id: string, web3auth_client_id: string) => {
     const data = { "client_id": client_id, "web3auth_client_id": web3auth_client_id, "connection": "email", "login_hint": email.email, "whitelabel": { "name": "", "url": "", "language": "en", "logo": "", "theme": {} }, "version": "v3", "network": "sapphire_mainnet", "flow_type": "code" }
 
     const res = await session.post('https://api-passwordless.web3auth.io/api/v3/auth/passwordless/start', data);
     return res.data.data.trackingId
   }
-  const client_id=getRandomChars(32)
-  const web3auth_client_id=getRandomChars(87)
+  const client_id = getRandomChars(32)
+  console.log('client_id', client_id)
 
-  const trackingId = await sendCode(client_id,web3auth_client_id)
+  const web3auth_client_id = getRandomChars(87)
+  console.log('web3auth_client_id', web3auth_client_id)
+
+
+  const trackingId = await sendCode(client_id, web3auth_client_id)
   console.log(trackingId)
 
   await delay(15000)
-  const code = await fetchOtpCode(email)
-  const data = { "client_id": client_id, "login_hint": email.email, "code": code, "connection": "email", "tracking_id": trackingId, "version": "v3", "network": "sapphire_mainnet", "flow_type": "code" }
-  const res = await session.post('https://api-passwordless.web3auth.io/api/v3/auth/passwordless/verify')
-  console.log(res.data)
+  const verify = async (client_id: string, trackingId: string) => {
+    const code = await fetchOtpCode(email)
+    const data = { "client_id": client_id, "login_hint": email.email, "code": code, "connection": "email", "tracking_id": trackingId, "version": "v3", "network": "sapphire_mainnet", "flow_type": "code" }
+    const res = await session.post('https://api-passwordless.web3auth.io/api/v3/auth/passwordless/verify')
+    console.log(res.data)
+  }
+  await verify(client_id, trackingId)
+  const data = { "operationName": "GetAuthToken", "variables": { "app_public_key": "02fefdd426ef8b5133a7a2b8013859b6aa42d31be4d6c7df40cc832491179c2160", "client_id": client_id, "timeout": 86400, "curve": "secp256k1", "verifier": "web3auth", "verifier_id": email.email, "aggregate_verifier": "web3auth-auth0-email-passwordless-sapphire", "name": email.email, "email": email.email, "session_nonce": "027b70ce6648a8b347ee8e7ee578e176345ef989dec1c401e3378bb08e6a86b0dc", "app_signed_message": "0x7bbf4636bec5ffee9e7f961ee908f699ff30913b39b2a544e408e16000d1c4fc65aba034a0eb7e16a9681b936706e2b1fe2ad82a041bc7f7592c5716e58467231c", "oauth_public_key": "0321aa16eac7361b3e62632595217b4d5a905074b53de70436643acec541585c7c" }, "query": "mutation GetAuthToken($app_public_key: String!, $client_id: String!, $timeout: Float, $curve: String!, $email: String, $profile_image: String, $name: String, $verifier: String, $aggregate_verifier: String, $type_of_login: String, $verifier_id: String, $oauth_public_key: String, $app_signed_message: String, $session_nonce: String) {\n  res: getExternalAuthToken(\n    input: {app_public_key: $app_public_key, timeout: $timeout, client_id: $client_id, curve: $curve, email: $email, name: $name, type_of_login: $type_of_login, profile_image: $profile_image, verifier: $verifier, aggregate_verifier: $aggregate_verifier, verifier_id: $verifier_id, oauth_public_key: $oauth_public_key, app_signed_message: $app_signed_message, session_nonce: $session_nonce}\n  ) {\n    token\n    __typename\n  }\n}" }
+  const res = await session.post('https://api-auth.web3auth.io/graphql', data,{headers:{Authorization:'Bearer ********'}}) // how to get this bearer token?
 
 
 
@@ -114,7 +123,7 @@ async function reg( email: any, proxy: string) {
     });
 }
 
-function regRecursive( proxies: any, emails: any, index = 0, numThreads = 4) {
+function regRecursive(proxies: any, emails: any, index = 0, numThreads = 4) {
   if (index >= emails.length) {
     return;
   }
@@ -135,19 +144,19 @@ function regRecursive( proxies: any, emails: any, index = 0, numThreads = 4) {
     if (code !== 0) {
       console.error(`Thread Exit ${code}`);
     }
-    regRecursive( proxies, emails, index + numThreads, numThreads);
+    regRecursive(proxies, emails, index + numThreads, numThreads);
   });
 }
 const main = async () => {
   if (isMainThread) {
     for (let i = 0; i < numThreads; i++) {
       await delay(customDelay);
-      regRecursive( proxies, emails, i, numThreads);
+      regRecursive(proxies, emails, i, numThreads);
     }
   } else {
     await delay(customDelay);
     const { email, proxy } = workerData;
-    reg( email, proxy);
+    reg(email, proxy);
   }
 };
 main();
